@@ -200,29 +200,25 @@ let mu2: type a b. (a t -> b t -> a t * b t) -> a t * b t = fun f ->
 
 (* records *)
 
+module R = struct
+  type (_, _) fields =
+    | [] : ('a, 'a) fields
+    | (::) : ('a, 'b) field * ('a, 'c) fields ->
+      ('a, 'b -> 'c) fields
+
+  let rec translate : type a b. (a, b) fields -> (a,b) View.fields
+    = function
+    | [] -> F0
+    | x :: t -> F1 (x, translate t)
+end
+
 type ('a, 'b) field = ('a, 'b) View.field
-
-type ('a, 'b, 'c) open_record =
-  ('a, 'c) fields -> string * 'b * ('a, 'b) fields
-
 let field fname ftype fget = { fname; ftype; fget }
-
-let record: string -> 'b -> ('a, 'b, 'b) open_record =
-  fun n c fs -> n, c, fs
-
-let app: type a b c d.
-  (a, b, c -> d) open_record -> (a, c) field -> (a, b, d) open_record
-  = fun r f fs ->
-    let n, c, fs = r (F1 (f, fs)) in
-    n, c, fs
-
-let sealr: type a b. (a, b, a) open_record -> a t =
-  fun r ->
-    let rname, rconstr, rfields = r F0 in
+let record: type a f. string -> f -> (a, f) R.fields -> a t =
+  fun rname rconstr l ->
+    let rfields = R.translate l in
     let rwit = Witness.make () in
     Record { rwit; rname; rfields ; rconstr }
-
-let (|+) = app
 
 (* variants *)
 

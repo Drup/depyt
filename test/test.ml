@@ -3,7 +3,7 @@
    Distributed under the ISC license, see terms at the end of the file.
    %%NAME%% %%VERSION%%
   ---------------------------------------------------------------------------*)
-
+[@@@ocaml.warning "-45"]
 open Depyt
 
 let int_like = like int (fun x -> x) (fun x -> x)
@@ -13,16 +13,16 @@ and z = { x: int; r: r list }
 
 let r, z =
   mu2 (fun r z ->
-      record "r" (fun foo bar z -> { foo; bar; z })
-      |+ field "foo" int (fun t -> t.foo)
-      |+ field "bar" (list string) (fun t -> t.bar)
-      |+ field "z" (option z) (fun t -> t.z)
-      |> sealr,
-      record "z" (fun x r -> { x; r })
-      |+ field "x" int (fun t -> t.x)
-      |+ field "r" (list r) (fun t -> t.r)
-      |> sealr
-    )
+    record "r" (fun foo bar z -> { foo; bar; z }) R.[
+        field "foo" int (fun t -> t.foo) ;
+        field "bar" (list string) (fun t -> t.bar) ;
+        field "z" (option z) (fun t -> t.z) ;
+      ],
+    record "z" (fun x r -> { x; r }) R.[
+        field "x" int (fun t -> t.x) ;
+        field "r" (list r) (fun t -> t.r) ;
+      ]
+  )
 
 let r1 = { foo = 3; bar = ["aaa";"b"]; z = None }
 let r2 = { foo = 3; bar = ["aaa";"c"]; z = Some { x = 2; r = [r1; r1] } }
@@ -48,10 +48,10 @@ let mkv v x =
   |> sealv
 
 let mkx v =
-  record "x" (fun r i -> { r; i })
-  |+ field "r" r (fun x -> x.r)
-  |+ field "i" (list (pair int v)) (fun x -> x.i)
-  |> sealr
+  record "x" (fun r i -> { r; i }) R.[
+      field "r" r (fun x -> x.r) ;
+      field "i" (list (pair int v)) (fun x -> x.i) ;
+    ]
 
 let v, x = mu2 (fun v x -> mkv v x, mkx v)
 

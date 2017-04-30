@@ -92,20 +92,14 @@ val field: string -> 'a t -> ('b -> 'a) -> ('b, 'a) field
     let foo = field "foo" (option string) (fun t -> t.x)]}
 *)
 
-type ('a, 'b, 'c) open_record
-(** The type for representing open records of type ['a] with
-    constructors of type ['b]. ['c] represents the fields missings to
-    the record, e.g. an open record initially holds ['c = 'b] and it
-    can can be {{!sealr}sealed} when ['c = 'a]. *)
+module R : sig
+  type (_, _) fields =
+    | [] : ('a, 'a) fields
+    | (::) : ('a, 'b) field * ('a, 'c) fields ->
+      ('a, 'b -> 'c) fields
+end
 
-val sealr: ('a, 'b, 'a) open_record -> 'a t
-(** [sealr r] seal the open record [r]. *)
-
-val (|+):
-  ('a, 'b, 'c -> 'd) open_record -> ('a, 'c) field -> ('a, 'b, 'd) open_record
-(** [r |+ f] adds the field [f] to the open record [r]. *)
-
-val record: string -> 'b -> ('a, 'b, 'b) open_record
+val record: string -> 'f -> ('a, 'f) R.fields -> 'a t
 (** [record n f fs] is the representation of the record called [n] of
     type ['a] using [f] as constructor and with the fields [fs].
 
@@ -115,10 +109,11 @@ val record: string -> 'b -> ('a, 'b, 'b) open_record
       type t = { foo: string; bar = (int * string) list; }
 
       let t =
-        record "t" (fun foo -> { foo })
-        |+ field "foo" string (fun t -> t.foo)
-        |+ field "bar" (list (pair int string)) (fun t -> t.bar)
-        |> sealr]}
+        record "t" (fun foo -> { foo }) R.[
+          field "foo" string (fun t -> t.foo) ;
+          field "bar" (list (pair int string)) (fun t -> t.bar) ;
+        ]
+    ]}
 *)
 
 (** {1:variants Variants} *)
