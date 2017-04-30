@@ -146,20 +146,14 @@ val case1: string -> 'b t -> ('b -> 'a) -> ('a, 'b -> 'a case_p) case
       let foo = case1 "Foo" string (fun s -> Foo s)]}
 *)
 
-type ('a, 'b, 'c) open_variant
-(** The type for representing open variants of type ['a] with pattern
-    matching of type ['b]. ['c] represents the missing cases for the
-    variant, e.g. initially variant hols [c' = 'b] and it can be
-    {{!sealv}sealed} when ['c = 'a].  *)
+module V : sig
+  type (_, _) cases =
+    | [] : ('a, 'a -> 'a case_p) cases
+    | (::) : ('a, 'f) case * ('a, 'c) cases ->
+      ('a, 'f -> 'c) cases
+end
 
-val sealv: ('a, 'b, 'a -> 'a case_p) open_variant -> 'a t
-(** [sealv v] seals the open variant [v]. *)
-
-val (|~):
-  ('a, 'b, 'c -> 'd) open_variant -> ('a, 'c) case -> ('a, 'b, 'd) open_variant
-(** [v |~ c] is [v] augmented with the case [c]. *)
-
-val variant: string -> 'b -> ('a, 'b, 'b) open_variant
+val variant: string -> 'b -> ('a, 'b) V.cases -> 'a t
 (** [variant n c p] is a representation of a variant type containing
     the cases [c] and using [p] to deconstruct values.
 
@@ -172,9 +166,10 @@ val variant: string -> 'b -> ('a, 'b, 'b) open_variant
         variant "t" (fun foo bar -> function
           | Foo   -> foo
           | Bar s -> bar s)
-        |~ case0 "Foo" Foo
-        |~ case1 "Bar" string (fun x -> Bar x)
-        |> sealr]}
+        V.[ case0 "Foo" Foo ;
+            case1 "Bar" string (fun x -> Bar x) ;
+          ]
+    ]}
 *)
 
 val enum: string -> (string * 'a) list -> 'a t

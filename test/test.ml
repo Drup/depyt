@@ -42,10 +42,10 @@ let mkv v x =
     | Foo         -> foo
     | Bar x       -> bar x
     | Yo (x, y) -> toto (x, y))
-  |~ case0 "Foo" Foo
-  |~ case1 "Bar" int_like (fun x -> Bar x)
-  |~ case1 "Yo" (pair x (option v)) (fun (x, y) -> Yo (x, y))
-  |> sealv
+    V.[ case0 "Foo" Foo ;
+        case1 "Bar" int_like (fun x -> Bar x) ;
+        case1 "Yo" (pair x (option v)) (fun (x, y) -> Yo (x, y)) ;
+      ]
 
 let mkx v =
   record "x" (fun r i -> { r; i }) R.[

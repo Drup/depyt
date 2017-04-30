@@ -224,32 +224,45 @@ let record: type a f. string -> f -> (a, f) R.fields -> a t =
 
 type 'a case_p = 'a case_v
 
-type ('a, 'b) case = int -> ('a a_case * 'b)
+module V = struct
+  type (_, _) case =
+    | CC0 : 'a case0 -> ('a, 'a case_p) case
+    | CC1 : ('a, 'b) case1 -> ('a, 'b -> 'a case_p) case
+  type (_, _) cases =
+    | [] : ('a, 'a -> 'a case_p) cases
+    | (::) : (int -> ('a, 'f) case) * ('a, 'c) cases ->
+      ('a, 'f -> 'c) cases
+end
+
+type ('a, 'f) case = int -> ('a, 'f) V.case
 
 let case0 cname0 c0 ctag0 =
-  let c = { ctag0; cname0; c0 } in
-  C0 c, CV0 c
+  V.CC0 { ctag0; cname0; c0 }
 
 let case1 cname1 ctype1 c1 ctag1 =
-  let c = { ctag1; cname1; ctype1; c1 } in
-  C1 c, fun v -> CV1 (c, v)
+  V.CC1 { ctag1; cname1; ctype1; c1 }
 
-type ('a, 'b, 'c) open_variant = 'a a_case list -> string * 'c * 'a a_case list
-
-let variant n c vs = n, c, vs
-
-let app v c cs =
-  let n, fc, cs = v cs in
-  let c, f = c (List.length cs) in
-  n, fc f, (c :: cs)
-
-let sealv v =
-  let vname, vget, vcases = v [] in
+let variant vname f l =
+  let rec aux
+    : type a f.
+      int -> f -> (a, f) V.cases -> a a_case list * (a -> a case_v)
+    = fun i f -> let open! V in function
+      | [] -> [], f
+      | c :: cases ->
+          match c i with
+          | CC0 c ->
+              let cases', f' =
+                aux (i+1) (f (CV0 c)) cases
+              in C0 c :: cases', f'
+          | CC1 c ->
+              let cases', f' =
+                aux (i+1) (f (fun v -> CV1 (c, v))) cases
+              in C1 c :: cases', f'
+  in
+  let vcases, vget = aux 0 f l in
   let vwit = Witness.make () in
-  let vcases = Array.of_list (List.rev vcases) in
+  let vcases = Array.of_list vcases in
   Variant { vwit; vname; vcases ; vget }
-
-let (|~) = app
 
 let enum vname l =
   let vwit = Witness.make () in
