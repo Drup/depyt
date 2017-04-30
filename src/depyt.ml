@@ -37,90 +37,94 @@ end = struct
 
 end
 
-type _ t =
-  | Self   : 'a self -> 'a t
-  | Like   : ('a, 'b) like -> 'b t
-  | Prim   : 'a prim -> 'a t
-  | List   : 'a t -> 'a list t
-  | Array  : 'a t -> 'a array t
-  | Tuple  : 'a tuple -> 'a t
-  | Option : 'a t -> 'a option t
-  | Record : 'a record -> 'a t
-  | Variant: 'a variant -> 'a t
+module View = struct
 
-and ('a, 'b) like = {
-  x: 'a t;
-  f: ('a -> 'b);
-  g: ('b -> 'a);
-  lwit: 'b Witness.t;
-}
+  type _ t =
+    | Self   : 'a self -> 'a t
+    | Like   : ('a, 'b) like -> 'b t
+    | Prim   : 'a prim -> 'a t
+    | List   : 'a t -> 'a list t
+    | Array  : 'a t -> 'a array t
+    | Tuple  : 'a tuple -> 'a t
+    | Option : 'a t -> 'a option t
+    | Record : ('a, _) record -> 'a t
+    | Variant: 'a variant -> 'a t
 
-and 'a self = {
-  mutable self: 'a t;
-}
+  and ('a, 'b) like = {
+    x: 'a t;
+    f: ('a -> 'b);
+    g: ('b -> 'a);
+    lwit: 'b Witness.t;
+  }
 
-and 'a prim =
-  | Unit   : unit prim
-  | Bool   : bool prim
-  | Char   : char prim
-  | Int    : int prim
-  | Int32  : int32 prim
-  | Int64  : int64 prim
-  | Float  : float prim
-  | String : string prim
+  and 'a self = {
+    mutable self: 'a t;
+  }
 
-and 'a tuple =
-  | Pair   : 'a t * 'b t -> ('a * 'b) tuple
-  | Triple : 'a t * 'b t * 'c t -> ('a * 'b * 'c) tuple
+  and 'a prim =
+    | Unit   : unit prim
+    | Bool   : bool prim
+    | Char   : char prim
+    | Int    : int prim
+    | Int32  : int32 prim
+    | Int64  : int64 prim
+    | Float  : float prim
+    | String : string prim
 
-and 'a record = {
-  rwit   : 'a Witness.t;
-  rname  : string;
-  rfields: 'a fields_and_constr;
-}
+  and 'a tuple =
+    | Pair   : 'a t * 'b t -> ('a * 'b) tuple
+    | Triple : 'a t * 'b t * 'c t -> ('a * 'b * 'c) tuple
 
-and 'a fields_and_constr =
-  | Fields: ('a, 'b) fields * 'b -> 'a fields_and_constr
+  and ('a, 'b) record = {
+      rwit   : 'a Witness.t;
+      rname  : string;
+      rfields: ('a, 'b) fields ;
+      rconstr : 'b ;
+    }
 
-and ('a, 'b) fields =
-  | F0: ('a, 'a) fields
-  | F1: ('a, 'b) field * ('a, 'c) fields -> ('a, 'b -> 'c) fields
+  and ('a, 'b) fields =
+    | F0 : ('a, 'a) fields
+    | F1 : ('a, 'b) field * ('a, 'c) fields -> ('a, 'b -> 'c) fields
 
-and ('a, 'b) field = {
-  fname: string;
-  ftype: 'b t;
-  fget : 'a -> 'b;
-}
+  and ('a, 'b) field = {
+    fname: string;
+    ftype: 'b t;
+    fget : 'a -> 'b;
+  }
 
-and 'a variant = {
-  vwit  : 'a Witness.t;
-  vname : string;
-  vcases: 'a a_case array;
-  vget  : 'a -> 'a case_v;
-}
+  and 'a variant = {
+    vwit  : 'a Witness.t;
+    vname : string;
+    vcases: 'a a_case array;
+    vget  : 'a -> 'a case_v;
+  }
 
-and 'a a_case =
-  | C0: 'a case0 -> 'a a_case
-  | C1: ('a, 'b) case1 -> 'a a_case
+  and 'a a_case =
+    | C0: 'a case0 -> 'a a_case
+    | C1: ('a, 'b) case1 -> 'a a_case
 
-and 'a case_v =
-  | CV0: 'a case0 -> 'a case_v
-  | CV1: ('a, 'b) case1 * 'b -> 'a case_v
+  and 'a case_v =
+    | CV0: 'a case0 -> 'a case_v
+    | CV1: ('a, 'b) case1 * 'b -> 'a case_v
 
-and 'a case0 = {
-  ctag0 : int;
-  cname0: string;
-  c0    : 'a;
-}
+  and 'a case0 = {
+    ctag0 : int;
+    cname0: string;
+    c0    : 'a;
+  }
 
-and ('a, 'b) case1 = {
-  ctag1 : int;
-  cname1: string;
-  ctype1: 'b t;
-  c1    : 'b -> 'a;
-}
+  and ('a, 'b) case1 = {
+    ctag1 : int;
+    cname1: string;
+    ctype1: 'b t;
+    c1    : 'b -> 'a;
+  }
 
-type _ a_field = Field: ('a, 'b) field -> 'a a_field
+  type _ a_field = Field: ('a, 'b) field -> 'a a_field
+
+end
+open View
+type 'a t = 'a View.t
 
 module Refl = struct
 
@@ -196,6 +200,8 @@ let mu2: type a b. (a t -> b t -> a t * b t) -> a t * b t = fun f ->
 
 (* records *)
 
+type ('a, 'b) field = ('a, 'b) View.field
+
 type ('a, 'b, 'c) open_record =
   ('a, 'c) fields -> string * 'b * ('a, 'b) fields
 
@@ -212,9 +218,9 @@ let app: type a b c d.
 
 let sealr: type a b. (a, b, a) open_record -> a t =
   fun r ->
-    let rname, c, fs = r F0 in
+    let rname, rconstr, rfields = r F0 in
     let rwit = Witness.make () in
-    Record { rwit; rname; rfields = Fields (fs, c) }
+    Record { rwit; rname; rfields ; rconstr }
 
 let (|+) = app
 
@@ -264,8 +270,7 @@ let rec fields_aux: type a b. (a, b) fields -> a a_field list = function
 | F0        -> []
 | F1 (h, t) -> Field h :: fields_aux t
 
-let fields r = match r.rfields with
-| Fields (f, _) -> fields_aux f
+let fields r = fields_aux r.rfields
 
 module Dump = struct
 
@@ -311,7 +316,7 @@ module Dump = struct
   | Float  -> float
   | String -> string
 
-  and record: type a. a record -> a Fmt.t = fun r ppf x ->
+  and record: type a f. (a, f) record -> a Fmt.t = fun r ppf x ->
     let fields = fields r in
     Fmt.pf ppf "@[{@ ";
     List.iter (fun (Field t) ->
@@ -400,7 +405,7 @@ module Equal = struct
   | Float  -> float
   | String -> string
 
-  and record: type a. a record -> a equal = fun r x y ->
+  and record: type a f. (a, f) record -> a equal = fun r x y ->
     List.for_all (function Field f -> field f x y) (fields r)
 
   and field: type a  b. (a, b) field -> a equal = fun f x y ->
@@ -512,7 +517,7 @@ module Compare = struct
   | Float  -> float
   | String -> string
 
-  and record: type a. a record -> a compare = fun r x y ->
+  and record: type a f. (a, f) record -> a compare = fun r x y ->
     let rec aux = function
     | []           -> 0
     | Field f :: t -> match field f x y with  0 -> aux t | i -> i
@@ -599,7 +604,7 @@ module Size_of = struct
   | Float  -> float
   | String -> string
 
-  and record: type a. a record -> a size_of = fun r x ->
+  and record: type a f. (a, f) record -> a size_of = fun r x ->
     let fields = fields r in
     List.fold_left (fun acc (Field f) -> acc + field f x) 0 fields
 
@@ -700,7 +705,7 @@ module Write = struct
   | Float  -> float
   | String -> string
 
-  and record: type a. a record -> a write = fun r buf ~pos x ->
+  and record: type a f. (a, f) record -> a write = fun r buf ~pos x ->
     let fields = fields r in
     List.fold_left (fun pos (Field f) -> field f buf ~pos x) pos fields
 
@@ -814,17 +819,16 @@ module Read = struct
   | Float  -> float
   | String -> string
 
-  and record: type a. a record -> a read = fun r buf ~pos ->
-    match r.rfields with
-    | Fields (fs, c) ->
-        let rec aux: type b. pos:int -> b -> (a, b) fields -> a res
-          = fun ~pos f -> function
-          | F0         -> ok pos f
-          | F1 (h, t) ->
-              field h buf ~pos >>= fun (pos, x) ->
-              aux ~pos (f x) t
-        in
-        aux ~pos c fs
+  and record : type a f . (a, f) record -> a read =
+    let rec aux: type b. buf:_ -> pos:int -> b -> (a, b) fields -> a res
+      = fun ~buf ~pos f -> function
+      | F0        -> ok pos f
+      | F1 (h, t) ->
+          field h buf ~pos >>= fun (pos, x) ->
+          aux ~buf ~pos (f x) t
+    in
+    fun { rfields ; rconstr ; _} buf ~pos ->
+      aux ~buf ~pos rconstr rfields
 
   and field: type a  b. (a, b) field -> b read = fun f -> t f.ftype
 
@@ -914,7 +918,7 @@ module Encode_json = struct
   | Float  -> float
   | String -> string
 
-  and record: type a. a record -> a encode_json = fun r e x ->
+  and record: type a f. (a, f) record -> a encode_json = fun r e x ->
     let fields = fields r in
     lexeme e `Os;
     List.iter (fun (Field f) ->
@@ -1111,7 +1115,7 @@ module Decode_json = struct
   | Float  -> float
   | String -> string
 
-  and record: type a. a record -> a decode = fun r e ->
+  and record: type a f. (a, f) record -> a decode = fun r e ->
     expect_lexeme e `Os >>= fun () ->
     let rec soup acc =
       lexeme e >>= function
@@ -1141,8 +1145,7 @@ module Decode_json = struct
           | Ok v         -> aux f (c v)
           | Error _ as e -> e
     in
-    let Fields (f, c) = r.rfields in
-    aux f c
+    aux r.rfields r.rconstr
 
   and variant: type a. a variant -> a decode = fun v e ->
     lexeme e >>= function
