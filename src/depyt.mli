@@ -74,6 +74,11 @@ val triple: 'a t -> 'b t -> 'c t -> ('a * 'b * 'c) t
 (** [triple x y z] is a representation of values of type [x * y *
     z]. *)
 
+val lazy_: 'a t -> 'a Lazy.t t
+(** [lazy x] is a presentation of values of type [x Lazy.t].
+    Lazy values are forced when inspected.
+*)
+
 (** {1:records Records} *)
 
 type ('a, 'b) field

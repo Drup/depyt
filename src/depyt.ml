@@ -187,6 +187,8 @@ let option a = Option a
 let like (type a b) (x: a t) (f: a -> b) (g: b -> a) =
   Like { x; f; g; lwit = Witness.make () }
 
+let lazy_ x = like x Lazy.from_val Lazy.force
+
 (* fix points *)
 
 let mu: type a. (a t -> a t) -> a t = fun f ->
