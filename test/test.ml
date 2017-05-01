@@ -195,6 +195,41 @@ let test_parse_json () =
   check y y1;
   check y y2
 
+(* Test tailrec-ness *)
+type intlist = Nil | Cons of int * intlist
+let intlist =
+  mu (fun intlist ->
+    variant "intlist"
+      (fun nil cons -> function Nil -> nil | Cons (i, l) -> cons (i, l))
+      V.[ case0 "Nil" Nil ;
+          case1 "Cons" (pair int intlist) (fun (i, l) -> Cons (i,l)) ;
+        ]
+  )
+let rec mkintlist acc n =
+  if n <= 0 then acc else mkintlist (Cons (n, acc)) (n-1)
+let l = mkintlist Nil 1_000_000
+
+let test_tail_rec () =
+  let noraise s f = try f () with _ -> Alcotest.fail s in
+
+  begin
+    let len = noraise __LOC__ @@ fun () -> size_of intlist l in
+    let buf = C (Cstruct.create len) in
+    let _len' = noraise __LOC__ @@ fun () -> write intlist buf ~pos:0 l in
+    let _pos, l' = noraise __LOC__ @@ fun () -> read intlist buf ~pos:0 in
+    Alcotest.(check @@ test intlist) __LOC__ l l'
+  end;
+
+  begin
+    let buf = Buffer.create 42 in
+    let e = Jsonm.encoder (`Buffer buf) in
+    noraise __LOC__ @@ fun () -> encode_json intlist e l;
+    let d = Jsonm.decoder (`String (Buffer.contents buf)) in
+    match decode_json intlist d with
+    | Ok l' -> Alcotest.(check @@ test intlist) __LOC__ l l'
+    | Error e -> Alcotest.fail (__LOC__ ^ "\n" ^ e)
+  end
+
 let () =
   Alcotest.run "depyt" [
     "basic", [
@@ -205,6 +240,7 @@ let () =
       "write"  , `Quick, test_bin_write;
       "read"   , `Quick, test_bin_read;
       "json"   , `Quick, test_parse_json;
+      (* "tailrec", `Slow, test_tail_rec; *)
     ]
   ]
 
