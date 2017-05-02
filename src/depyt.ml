@@ -565,6 +565,161 @@ end
 
 let compare = Compare.t
 
+
+module Fold = struct
+
+  module type S = sig
+    type ret
+    type folder = F : {
+        op : ret -> 'a -> 'a ;
+        zero : 'a ;
+        k : 'a -> ret ;
+      } -> folder
+    val prim : 'a prim -> 'a -> ret
+    val list : 'a t -> folder
+    val array : 'a t -> folder
+    val tuple2 : ret -> ret -> ret
+    val tuple3 : ret -> ret -> ret -> ret
+    val none : 'a t -> ret
+    val some : 'a t -> ret -> ret
+    val cons0 : 'a case0 -> ret
+    val cons1 : ('a, 'b) case1 -> ret -> ret
+    val record : ('a, 'f) record -> folder
+  end
+
+  module Make (M : S) = struct
+
+    type k = M.ret -> M.ret
+        let (%) f g x = f (g x)
+
+    let like a { g ; _ } k v = a k (g v)
+    let prim p k v = k (M.prim p v)
+    let pair f1 f2 k (x1,x2) =
+      let k1 r1 = f2 (k % M.tuple2 r1) x2 in
+      f1 k1 x1
+    let triple f1 f2 f3 k (x1,x2,x3) =
+      let k2 r1 r2 = f3 (k % M.tuple3 r1 r2) x3 in
+      let k1 r1 = f2 (k % k2 r1) x2 in
+      f1 k1 x1
+
+    let rec list
+      : type a. a t -> k -> a list -> M.ret
+      = fun desc ->
+        let M.F {op; zero ; k} = M.list desc in
+        let f = t desc in
+        let rec aux acc = function
+        | [] -> k acc
+        | h :: t ->
+            let k' x = aux (op x acc) t in
+            f k' h
+        in
+        fun kk l -> kk (aux zero l)
+
+    and array
+      : type a. a t -> k -> a array -> M.ret
+      = fun desc ->
+        let M.F {op; zero ; k} = M.array desc in
+        let f = t desc in
+        fun kk a ->
+          let len = Array.length a in
+          let rec aux acc i =
+            if i >= len then kk (k acc)
+            else
+            let k' x = aux (op x acc) (i+1) in
+            f k' a.(i)
+          in
+          aux zero 0
+
+    and option
+      : type a. a t -> k -> a option -> M.ret
+      = fun desc ->
+        let none = M.none desc and some = M.some desc in
+        let f = t desc in
+        fun k -> function
+        | None -> k none
+        | Some x ->
+            let k' r = k (some r) in
+            f k' x
+
+    and tuple
+      : type a. a tuple -> k -> a -> M.ret
+      = function
+      | Pair (d1,d2) -> pair (t d1) (t d2)
+      | Triple (d1,d2,d3) -> triple (t d1) (t d2) (t d3)
+
+    and variant
+      : type a. a variant -> k -> a -> M.ret
+      = fun { vget ; _ } k v ->
+        match vget v with
+        | CV0 d -> k (M.cons0 d)
+        | CV1 (d,v) ->
+            let k' r = k (M.cons1 d r) in
+            t d.ctype1 k' v
+
+    and record
+      : type a f. (a, f) record -> k -> a -> M.ret
+      = fun desc ->
+        let M.F {op; zero ; k} = M.record desc in
+        let rec aux
+          : type f. _ -> _ -> (a, f) fields -> M.ret
+          = fun acc v -> function
+          | F0 -> k acc
+          | F1 ({ ftype; fget ; _ }, fields) ->
+              let k' r = aux (op r acc) v fields in
+              t ftype k' (fget v)
+        in
+        fun kk v -> kk (aux zero v desc.rfields)
+
+    and t
+      : type a. a t -> k -> a -> M.ret
+      = function
+      | Self {self} -> t self
+      | Like d -> like (t d.x) d
+      | Prim d -> prim d
+      | List d -> list d
+      | Array d -> array d
+      | Tuple d -> tuple d
+      | Option d -> option d
+      | Record d -> record d
+      | Variant d -> variant d
+
+  end
+end
+
+module Reduce = struct
+  module type S = sig
+    type ret
+    val zero : ret
+    val op : ret -> ret -> ret
+    val cons0 : ret
+    val cons1 : ret -> ret
+    val list : ret -> ret
+    val array : ret -> ret
+    val prim : 'a prim -> 'a -> ret
+    val record : ret -> ret
+  end
+
+  module Make (M : S) = Fold.Make(struct
+      include M
+      type folder = F : {
+          op : ret -> 'a -> 'a ;
+          zero : 'a ;
+          k : 'a -> ret ;
+        } -> folder
+      let folder k = F {op ; zero ; k}
+      let list _ = folder list
+      let array _ = folder array
+      let cons0 _ = cons0
+      let cons1 _ = cons1
+      let tuple2 = op
+      let tuple3 x y z = op (op x y) z
+      let none = cons0
+      let some = cons1
+      let record _ = folder record
+    end)
+end
+
+
 type buffer =
   | C of Cstruct.t
   | B of bytes
