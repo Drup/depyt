@@ -724,70 +724,43 @@ type buffer =
   | C of Cstruct.t
   | B of bytes
 
-type 'a size_of = 'a -> int
 type 'a write = buffer -> pos:int -> 'a -> int
 type 'a read = buffer -> pos:int -> int * 'a
 
-module Size_of = struct
+module Size_of = Reduce.Make(struct
+    type ret = int
 
-  let unit () = 0
-  let int8 (_:int) = 1
-  let char (_:char) = 1
-  let int (_:int) = 8 (* NOTE: to be portable, we consider int=int64 *)
-  let int32 (_:int32) = 4
-  let int64 (_:int64) = 8
-  let bool (_:bool) = 1
-  let float (_:float) = 8 (* NOTE: we consider 'double' here *)
-  let string s = (int 0) + String.length s
-  let list l x = List.fold_left (fun acc x -> acc + l x) (int 0) x
-  let array l x = Array.fold_left (fun acc x -> acc + l x) (int 0) x
-  let pair a b (x, y) = a x + b y
-  let triple a b c (x, y, z) = a x + b y + c z
-  let option o = function
-  | None   -> int8 0
-  | Some x -> (int8 0) + o x
+    let op = (+)
+    let zero = 0
 
-  let rec t: type a. a t -> a size_of = function
-  | Self s    -> t s.self
-  | Like b    -> like b
-  | Prim t    -> prim t
-  | List l    -> list (t l)
-  | Array a   -> array (t a)
-  | Tuple t   -> tuple t
-  | Option x  -> option (t x)
-  | Record r  -> record r
-  | Variant v -> variant v
+    let unit () = 0
+    let int8 (_:int) = 1
+    let char (_:char) = 1
+    let int (_:int) = 8 (* NOTE: to be portable, we consider int=int64 *)
+    let int32 (_:int32) = 4
+    let int64 (_:int64) = 8
+    let bool (_:bool) = 1
+    let float (_:float) = 8 (* NOTE: we consider 'double' here *)
+    let string s = (int 0) + String.length s
 
-  and tuple: type a. a tuple -> a size_of = function
-  | Pair (x,y)     -> pair (t x) (t y)
-  | Triple (x,y,z) -> triple (t x) (t y) (t z)
+    let prim: type a. a prim -> a -> ret = function
+    | Unit   -> unit
+    | Bool   -> bool
+    | Char   -> char
+    | Int    -> int
+    | Int32  -> int32
+    | Int64  -> int64
+    | Float  -> float
+    | String -> string
 
-  and like: type a b. (a, b) like -> b size_of =
-    fun { x; g; _ } u -> t x (g u)
+    let cons0 = int8 0
+    let cons1 x = int8 0 + x
+    let list x = int 0 + x
+    let array x = int 0 + x
+    let record x = x
+  end)
 
-  and prim: type a. a prim -> a size_of = function
-  | Unit   -> unit
-  | Bool   -> bool
-  | Char   -> char
-  | Int    -> int
-  | Int32  -> int32
-  | Int64  -> int64
-  | Float  -> float
-  | String -> string
-
-  and record: type a f. (a, f) record -> a size_of = fun r x ->
-    let fields = fields r in
-    List.fold_left (fun acc (Field f) -> acc + field f x) 0 fields
-
-  and field: type a b. (a, b) field -> a size_of = fun f x ->
-    t f.ftype (f.fget x)
-
-  and variant: type a. a variant -> a size_of = fun v x ->
-    match v.vget x with
-    | CV0 _       -> (int8 0)
-    | CV1 (x, vx) -> (int8 0) + t x.ctype1 vx
-
-end
+let size_of t x = Size_of.t t (fun x -> x) x
 
 module B = EndianBytes.BigEndian
 
@@ -1015,7 +988,6 @@ module Read = struct
 
 end
 
-let size_of = Size_of.t
 let read = Read.t
 let write = Write.t
 
